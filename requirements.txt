@@ -2,3 +2,5 @@ streamlit
 pillow
 python-bidi
 reportlab
+Alef-Regular.ttf
+Alef-Bold.ttf
