@@ -142,4 +142,148 @@ def generate_pdf(junction_name, report_nature, report_date, inspector_data, item
     page_width = 186
     left_margin = 12
     img_box_w = 78
-    text_box
+    text_box_w = page_width - img_box_w - 4
+
+    for idx, item in enumerate(items, start=1):
+        if pdf.get_y() + card_height > 264:
+            pdf.add_page()
+
+        start_y = pdf.get_y()
+
+        pdf.set_draw_color(190, 200, 215)
+        pdf.set_line_width(0.4)
+        pdf.rect(left_margin, start_y, page_width, card_height)
+
+        divider_x = left_margin + img_box_w + 2
+        pdf.line(divider_x, start_y, divider_x, start_y + card_height)
+
+        # תמונה בצד שמאל
+        img = Image.open(item['file'])
+        img = ImageOps.exif_transpose(img)
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+            img.save(tmp_file.name, format="JPEG", quality=88)
+            tmp_path = tmp_file.name
+
+        max_img_w = img_box_w - 4
+        max_img_h = card_height - 4
+        w, h = img.size
+        aspect = w / h
+
+        if w / h > max_img_w / max_img_h:
+            disp_w = max_img_w
+            disp_h = disp_w / aspect
+        else:
+            disp_h = max_img_h
+            disp_w = disp_h * aspect
+
+        img_x = left_margin + (img_box_w - disp_w) / 2 + 1
+        img_y = start_y + (card_height - disp_h) / 2
+        pdf.image(tmp_path, x=img_x, y=img_y, w=disp_w, h=disp_h)
+        os.remove(tmp_path)
+
+        # תיאור מרווח בצד ימין
+        text_x = divider_x + 3
+        text_w = text_box_w - 6
+
+        pdf.set_xy(text_x, start_y + 3)
+        pdf.set_fill_color(235, 242, 250)
+        pdf.set_font('DejaVu', 'B', 11)
+        pdf.set_text_color(18, 78, 145)
+        pdf.cell(text_w, 8, heb(f"תמונה {idx} - תיאור"), ln=True, align='R', fill=True)
+
+        pdf.set_xy(text_x, start_y + 13)
+        pdf.set_font('DejaVu', '', 10)
+        pdf.set_text_color(25, 25, 25)
+        desc_text = item['desc'] if item['desc'] else "לא הוזן תיאור."
+        pdf.multi_cell(text_w, 6, heb(desc_text), align='R')
+
+        pdf.set_y(start_y + card_height + 5)
+
+    # בלוק סיכום וחתימת מפקח בסוף הדוח
+    if pdf.get_y() + 28 > 264:
+        pdf.add_page()
+
+    pdf.ln(3)
+    pdf.set_fill_color(248, 250, 252)
+    pdf.set_draw_color(180, 190, 205)
+    sig_y = pdf.get_y()
+    pdf.rect(12, sig_y, 186, 22, style='DF')
+
+    pdf.set_xy(15, sig_y + 3)
+    pdf.set_font('DejaVu', 'B', 10)
+    pdf.set_text_color(15, 45, 85)
+    pdf.cell(180, 6, heb("אישור מפקח:"), ln=True, align='R')
+
+    pdf.set_xy(15, sig_y + 10)
+    pdf.set_font('DejaVu', '', 9.5)
+    pdf.set_text_color(30, 30, 30)
+    sig_line = (
+        f"שם המפקח: {inspector_data['name']}   |   "
+        f"סוג רישיון: {inspector_data['license_type']}   |   "
+        f"מס' רישיון: {inspector_data['license_num']}   |   "
+        f"טלפון: {inspector_data['phone']}"
+    )
+    pdf.cell(180, 7, heb(sig_line), ln=True, align='R')
+
+    return bytes(pdf.output())
+
+
+# ================= ממשק המשתמש =================
+col_logo, col_title = st.columns([1, 3])
+with col_logo:
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
+with col_title:
+    st.title("ד.ד. מהנדסים בע''מ")
+    st.caption("הפקת דוחות שטח ותמונות PDF")
+
+st.divider()
+
+# 1. ראש הדוח: שם צומת ומהות הדוח
+st.subheader("1. פרטי ראש הדוח")
+c1, c2 = st.columns(2)
+with c1:
+    junction_name = st.text_input("שם צומת", placeholder="לדוגמה: צומת בילו / הרב משה שפירא-שביט")
+with c2:
+    report_nature = st.text_input("מהות הדוח", value="דוח לפני מסירת צומת", placeholder="לדוגמה: דוח לפני מסירת צומת / ביקורת אחזקה")
+
+st.divider()
+
+# 2. תמונות ותיאור לכל תמונה
+st.subheader("2. תמונות ותיאור")
+uploaded_files = st.file_uploader(
+    "בחר או צלם תמונות",
+    type=["jpg", "jpeg", "png"],
+    accept_multiple_files=True
+)
+
+items_data = []
+
+if uploaded_files:
+    for i, file in enumerate(uploaded_files):
+        with st.container(border=True):
+            col_img, col_desc = st.columns([1, 2])
+            with col_img:
+                st.image(file, use_container_width=True)
+            with col_desc:
+                desc = st.text_area(
+                    f"תיאור תמונה {i + 1}",
+                    key=f"desc_{i}",
+                    height=165,
+                    placeholder="רשום כאן את התיאור עבור התמונה..."
+                )
+                items_data.append({"file": file, "desc": desc})
+
+st.divider()
+
+# 3. פרטים בסוף הדוח: שם המפקח, סוג רישיון, מס' רישיון, טלפון
+st.subheader("3. פרטי מפקח (יופיעו למטה בדוח)")
+i1, i2, i3, i4 = st.columns(4)
+with i1:
+    inspector_name = st.text_input("שם המפקח", value="נתנאל עוז הררי")
+with i2:
+    license_type = st.text_input("סוג רישיון", value="הנדסאי חשמל / מפקח הסדרי תנועה")
+with i
