@@ -130,4 +130,16 @@ def generate_pdf(junction_name, report_nature, report_date, inspector_data, item
     pdf.cell(180, 7, heb(junction_line), ln=True, align='R')
 
     pdf.set_xy(15, banner_y + 8)
-    pdf.set_font('DejaVu', 'B', 10
+    pdf.set_font('DejaVu', 'B', 10)
+    pdf.set_text_color(45, 45, 45)
+    nature_line = f"מהות הדוח: {report_nature if report_nature else 'לא צוינה'}"
+    pdf.cell(180, 7, heb(nature_line), ln=True, align='R')
+
+    pdf.set_y(banner_y + 21)
+
+    # כרטיסי תמונה + תיאור לכל פריט
+    card_height = 78
+    page_width = 186
+    left_margin = 12
+    img_box_w = 78
+    text_box
