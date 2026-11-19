@@ -50,90 +50,55 @@ st.markdown(
 
 
 def heb(text):
-    if text is None:
+    if not text:
         return ""
-    s = str(text)
-    if not s:
-        return ""
-    lines = s.split("\n")
+    lines = str(text).split("\n")
     return "<br/>".join(get_display(line) for line in lines)
 
 
-def _find_hebrew_font_paths():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    candidates_reg = [
-        os.path.join(base_dir, "Alef-Regular.ttf"),
-        "Alef-Regular.ttf",
-        os.path.join(base_dir, "fonts", "Alef-Regular.ttf"),
-        "/usr/share/fonts/truetype/alef/Alef-Regular.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-        "C:\\Windows\\Fonts\\david.ttf",
-    ]
-    candidates_bold = [
-        os.path.join(base_dir, "Alef-Bold.ttf"),
-        "Alef-Bold.ttf",
-        os.path.join(base_dir, "fonts", "Alef-Bold.ttf"),
-        "/usr/share/fonts/truetype/alef/Alef-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "C:\\Windows\\Fonts\\arialbd.ttf",
-        "C:\\Windows\\Fonts\\davidbd.ttf",
-    ]
-
-    reg_path = next((p for p in candidates_reg if p and os.path.exists(p)), None)
-    bold_path = next((p for p in candidates_bold if p and os.path.exists(p)), None)
-    return reg_path, bold_path
-
-
-def _ensure_fallback_fonts():
-    cache_dir = os.path.join(os.path.expanduser("~"), ".cache", "dd_pdf_fonts")
-    os.makedirs(cache_dir, exist_ok=True)
-    reg_cache = os.path.join(cache_dir, "Alef-Regular.ttf")
-    bold_cache = os.path.join(cache_dir, "Alef-Bold.ttf")
-
-    urls = {
-        reg_cache: "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Regular.ttf",
-        bold_cache: "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Bold.ttf",
-    }
-
-    for target_path, url in urls.items():
-        if not os.path.exists(target_path):
-            try:
-                urllib.request.urlretrieve(url, target_path)
-            except Exception:
-                pass
-
-    return (
-        reg_cache if os.path.exists(reg_cache) else None,
-        bold_cache if os.path.exists(bold_cache) else None,
-    )
+def _get_font_file(filename, url):
+    if os.path.exists(filename):
+        return filename
+    cache_path = os.path.join("/tmp", filename)
+    if os.path.exists(cache_path):
+        return cache_path
+    try:
+        urllib.request.urlretrieve(url, cache_path)
+        if os.path.exists(cache_path):
+            return cache_path
+    except Exception as e:
+        print(f"Could not download {filename}:", e)
+    return None
 
 
 def register_fonts():
+    reg_name = "AlefRegular"
+    bold_name = "AlefBold"
     registered = set(pdfmetrics.getRegisteredFontNames())
-    if "HebReg" in registered and "HebBold" in registered:
-        return "HebReg", "HebBold"
 
-    reg_path, bold_path = _find_hebrew_font_paths()
-    if not reg_path or not bold_path:
-        dl_reg, dl_bold = _ensure_fallback_fonts()
-        reg_path = reg_path or dl_reg
-        bold_path = bold_path or dl_bold
+    if reg_name in registered and bold_name in registered:
+        return reg_name, bold_name
 
-    if not reg_path:
-        raise RuntimeError(
-            "לא נמצא קובץ פונט תומך עברית (.ttf). מומלץ להניח את Alef-Regular.ttf ו-Alef-Bold.ttf בתיקיית הקוד."
-        )
+    reg_path = _get_font_file(
+        "Alef-Regular.ttf",
+        "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Regular.ttf",
+    )
+    bold_path = _get_font_file(
+        "Alef-Bold.ttf",
+        "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Bold.ttf",
+    )
 
-    if not bold_path:
-        bold_path = reg_path
+    if reg_path and bold_path:
+        try:
+            if reg_name not in registered:
+                pdfmetrics.registerFont(TTFont(reg_name, reg_path))
+            if bold_name not in registered:
+                pdfmetrics.registerFont(TTFont(bold_name, bold_path))
+            return reg_name, bold_name
+        except Exception as e:
+            print("Error registering fonts:", e)
 
-    if "HebReg" not in registered:
-        pdfmetrics.registerFont(TTFont("HebReg", reg_path))
-    if "HebBold" not in registered:
-        pdfmetrics.registerFont(TTFont("HebBold", bold_path))
-
-    return "HebReg", "HebBold"
+    return "Helvetica", "Helvetica-Bold"
 
 
 def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, items):
@@ -185,4 +150,32 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
         alignment=2,
     )
 
+    # כותרת עליונה ולוגו
     header_title = heb("ד.ד. מהנדסים בע''מ - דוח שטח")
+    header_sub = heb(
+        f"צומת: {junction_name or 'לא צוין'}  |  מהות: {report_nature or 'לא צוינה'}  |  תאריך: {report_date}"
+    )
+
+    text_block = [Paragraph(header_title, title_style), Spacer(1, 2 * mm), Paragraph(header_sub, sub_style)]
+
+    if os.path.exists("logo.png"):
+        try:
+            logo_img = RLImage("logo.png", width=36 * mm, height=16 * mm, kind="proportional")
+            top_table = Table([[logo_img, text_block]], colWidths=[42 * mm, 140 * mm])
+            top_table.setStyle(
+                TableStyle(
+                    [
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                    ]
+                )
+            )
+            story.append(top_table)
+        except Exception:
+            story.extend(text_block)
+    else:
+        story.extend(text_block)
+
+    story.append(Spacer(1, 3 * mm))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=colors
