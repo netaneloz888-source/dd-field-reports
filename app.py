@@ -56,32 +56,14 @@ def heb(text):
 
 
 def register_fonts():
-    regular_candidates = [
-        "DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-    ]
-    bold_candidates = [
-        "DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-    ]
-
-    reg_path = next((p for p in regular_candidates if os.path.exists(p)), None)
-    bold_path = next((p for p in bold_candidates if os.path.exists(p)), None)
-
-    if reg_path:
-        try:
-            pdfmetrics.registerFont(TTFont("AppHebrew", reg_path))
-            if bold_path:
-                pdfmetrics.registerFont(TTFont("AppHebrewBold", bold_path))
-            else:
-                pdfmetrics.registerFont(TTFont("AppHebrewBold", reg_path))
-            return "AppHebrew", "AppHebrewBold"
-        except Exception:
-            pass
-
-    return "Helvetica", "Helvetica-Bold"
+    try:
+        # תוודא שקבצי Alef-Regular.ttf ו-Alef-Bold.ttf נמצאים בתיקיה זו או תעדכן את הנתיב בהתאם
+        pdfmetrics.registerFont(TTFont("AlefRegular", "Alef-Regular.ttf"))
+        pdfmetrics.registerFont(TTFont("AlefBold", "Alef-Bold.ttf"))
+        return "AlefRegular", "AlefBold"
+    except Exception as e:
+        print("Error registering fonts:", e)
+        return "Helvetica", "Helvetica-Bold"
 
 
 def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, items):
@@ -271,7 +253,7 @@ uploaded_files = st.file_uploader(
 items_data = []
 if uploaded_files:
     for i, file in enumerate(uploaded_files):
-        with st.container(border=True):
+        with st.container():
             col_img, col_desc = st.columns([1, 2])
             with col_img:
                 st.image(file, use_container_width=True)
@@ -293,7 +275,7 @@ with i1:
 with i2:
     license_type = st.text_input("סוג רישיון", value="הנדסאי חשמל / מפקח הסדרי תנועה")
 with i3:
-    license_num = st.text_input("מס' רישיון", placeholder="הזן מס' רישיון")
+    license_num = st.text_input("מס' רישוין", placeholder="הזן מס' רישיון")
 with i4:
     phone = st.text_input("טלפון", value="054-5520445")
 
