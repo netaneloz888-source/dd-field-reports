@@ -286,4 +286,39 @@ with i1:
     inspector_name = st.text_input("שם המפקח", value="נתנאל עוז הררי")
 with i2:
     license_type = st.text_input("סוג רישיון", value="הנדסאי חשמל / מפקח הסדרי תנועה")
-with i
+with i3:
+    license_num = st.text_input("מס' רישיון", placeholder="הזן מס' רישיון")
+with i4:
+    phone = st.text_input("טלפון", value="054-5520445")
+
+st.divider()
+
+if st.button("📄 הפק דוח PDF", type="primary", use_container_width=True):
+    if not uploaded_files:
+        st.warning("נא להעלות לפחות תמונה אחת לפני הפקת הדוח.")
+    else:
+        with st.spinner("מייצר קובץ PDF..."):
+            inspector_info = {
+                "name": inspector_name,
+                "license_type": license_type,
+                "license_num": license_num,
+                "phone": phone
+            }
+            date_str = datetime.now().strftime("%d/%m/%Y")
+            pdf_bytes = generate_pdf(
+                junction_name=junction_name,
+                report_nature=report_nature,
+                report_date=date_str,
+                inspector_data=inspector_info,
+                items=items_data
+            )
+            clean_junction = junction_name.strip().replace(" ", "_") if junction_name.strip() else "צומת"
+            file_name = f"דוח_{clean_junction}{datetime.now().strftime('%Y%m%d%H%M')}.pdf"
+            st.success("הדוח מוכן!")
+            st.download_button(
+                label="⬇️ הורד דוח PDF",
+                data=pdf_bytes,
+                file_name=file_name,
+                mime="application/pdf",
+                use_container_width=True
+            )
