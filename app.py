@@ -100,6 +100,3 @@ class EngineeringReportPDF(FPDF):
             self.cell(110, 6, heb(f"תאריך: {self.report_date}"), ln=True, align='L')
             self.set_y(37)
         else:
-            self.set_font('DejaVu', 'B', 16)
-            self.set_text_color(18, 78, 145)
-            self.cell(0, 10, heb('ד.ד. מהנדסים בע"מ'), ln=True, align='C
