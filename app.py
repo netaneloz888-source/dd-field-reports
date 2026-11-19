@@ -1,11 +1,12 @@
-import streamlit as st
-from fpdf import FPDF
-from PIL import Image, ImageOps
-from bidi.algorithm import get_display
-import tempfile
 import os
+import tempfile
 import urllib.request
 from datetime import datetime
+
+import streamlit as st
+from bidi.algorithm import get_display
+from fpdf import FPDF
+from PIL import Image, ImageOps
 
 # הגדרות עמוד וכיוון מימין לשמאל
 st.set_page_config(page_title="ד.ד. מהנדסים בע''מ - דוח שטח", page_icon="⚡", layout="wide")
@@ -31,8 +32,8 @@ st.markdown("""
 def heb(text):
     if not text:
         return ""
-    lines = str(text).split('\n')
-    return '\n'.join(get_display(line) for line in lines)
+    lines = str(text).split("\n")
+    return "\n".join(get_display(line) for line in lines)
 
 
 def resolve_font_paths():
@@ -87,16 +88,10 @@ class EngineeringReportPDF(FPDF):
         if os.path.exists("logo.png"):
             self.image("logo.png", x=130, y=8, w=68)
             self.set_xy(12, 11)
-            self.set_font('DejaVu', 'B', 13)
+            self.set_font("DejaVu", "B", 13)
             self.set_text_color(18, 78, 145)
-            self.cell(110, 7, heb(self.junction_name if self.junction_name else "דוח פיקוח ושטח"), ln=True, align='L')
+            self.cell(110, 7, heb(self.junction_name if self.junction_name else "דוח פיקוח ושטח"), ln=True, align="L")
 
-            self.set_font('DejaVu', 'B', 10)
+            self.set_font("DejaVu", "B", 10)
             self.set_text_color(40, 40, 40)
-            self.cell(110, 6, heb(self.report_nature if self.report_nature else ""), ln=True, align='L')
-
-            self.set_font('DejaVu', '', 9)
-            self.set_text_color(100, 100, 100)
-            self.cell(110, 6, heb(f"תאריך: {self.report_date}"), ln=True, align='L')
-            self.set_y(37)
-        else:
+            self.cell(110, 6, heb(self.report_nature if self.report_nature else ""), ln=True
