@@ -129,33 +129,3 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        rightMargin=14 * mm,
-        leftMargin=14 * mm,
-        topMargin=16 * mm,
-        bottomMargin=18 * mm,
-        title="דוח פיקוח ושטח",
-    )
-
-    story = []
-
-    title_style = ParagraphStyle(
-        "TitleStyle",
-        fontName=font_bold,
-        fontSize=15,
-        leading=20,
-        textColor=colors.HexColor("#124E91"),
-        alignment=2,
-    )
-    sub_style = ParagraphStyle(
-        "SubStyle",
-        fontName=font_reg,
-        fontSize=10,
-        leading=14,
-        textColor=colors.HexColor("#333333"),
-        alignment=2,
-    )
-    card_header_style = ParagraphStyle(
-        "CardHeader",
-        fontName=font_bold,
-        fontSize=11,
-        leading=1
