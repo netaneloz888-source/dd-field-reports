@@ -56,41 +56,65 @@ def heb(text):
     return "<br/>".join(get_display(line) for line in lines)
 
 
-def register_fonts():
+def _download_font(url, dest_path):
     try:
-        reg_name = "AlefRegular"
-        bold_name = "AlefBold"
-        registered = set(pdfmetrics.getRegisteredFontNames())
-        if reg_name in registered and bold_name in registered:
-            return reg_name, bold_name
-
-        reg_path = "Alef-Regular.ttf"
-        bold_path = "Alef-Bold.ttf"
-
-        if not os.path.exists(reg_path):
-            reg_path = "/tmp/Alef-Regular.ttf"
-            if not os.path.exists(reg_path):
-                urllib.request.urlretrieve(
-                    "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Regular.ttf",
-                    reg_path,
-                )
-
-        if not os.path.exists(bold_path):
-            bold_path = "/tmp/Alef-Bold.ttf"
-            if not os.path.exists(bold_path):
-                urllib.request.urlretrieve(
-                    "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Bold.ttf",
-                    bold_path,
-                )
-
-        if reg_name not in registered:
-            pdfmetrics.registerFont(TTFont(reg_name, reg_path))
-        if bold_name not in registered:
-            pdfmetrics.registerFont(TTFont(bold_name, bold_path))
-        return reg_name, bold_name
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = resp.read()
+        if data and len(data) > 5000:
+            with open(dest_path, "wb") as f:
+                f.write(data)
+            return dest_path
     except Exception as e:
-        print("Error registering fonts:", e)
-        return "Helvetica", "Helvetica-Bold"
+        print("Font download error:", e)
+    return None
+
+
+def register_fonts():
+    reg_name = "AlefRegular"
+    bold_name = "AlefBold"
+    registered = set(pdfmetrics.getRegisteredFontNames())
+    if reg_name in registered and bold_name in registered:
+        return reg_name, bold_name
+
+    reg_candidates = [
+        "Alef-Regular.ttf",
+        "fonts/Alef-Regular.ttf",
+        "/tmp/Alef-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    bold_candidates = [
+        "Alef-Bold.ttf",
+        "fonts/Alef-Bold.ttf",
+        "/tmp/Alef-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    ]
+
+    reg_path = next((p for p in reg_candidates if os.path.exists(p)), None)
+    bold_path = next((p for p in bold_candidates if p and os.path.exists(p)), None)
+
+    if not reg_path:
+        reg_path = _download_font(
+            "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Regular.ttf",
+            "/tmp/Alef-Regular.ttf",
+        )
+    if not bold_path:
+        bold_path = _download_font(
+            "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Bold.ttf",
+            "/tmp/Alef-Bold.ttf",
+        )
+
+    if reg_path and bold_path:
+        try:
+            if reg_name not in registered:
+                pdfmetrics.registerFont(TTFont(reg_name, reg_path))
+            if bold_name not in registered:
+                pdfmetrics.registerFont(TTFont(bold_name, bold_path))
+            return reg_name, bold_name
+        except Exception as e:
+            print("Error registering fonts:", e)
+
+    return "Helvetica", "Helvetica-Bold"
 
 
 def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, items):
@@ -122,66 +146,4 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
         fontName=font_reg,
         fontSize=10,
         leading=14,
-        textColor=colors.HexColor("#333333"),
-        alignment=2,
-    )
-    card_header_style = ParagraphStyle(
-        "CardHeader",
-        fontName=font_bold,
-        fontSize=11,
-        leading=15,
-        textColor=colors.HexColor("#124E91"),
-        alignment=2,
-    )
-    desc_style = ParagraphStyle(
-        "DescStyle",
-        fontName=font_reg,
-        fontSize=10,
-        leading=14,
-        textColor=colors.HexColor("#1A1A1A"),
-        alignment=2,
-    )
-
-    # כותרת עליונה ולוגו
-    header_title = heb("ד.ד. מהנדסים בע''מ - דוח שטח")
-    header_sub = heb(
-        f"צומת: {junction_name or 'לא צוין'}  |  מהות: {report_nature or 'לא צוינה'}  |  תאריך: {report_date}"
-    )
-
-    text_block = [Paragraph(header_title, title_style), Spacer(1, 2 * mm), Paragraph(header_sub, sub_style)]
-
-    if os.path.exists("logo.png"):
-        try:
-            logo_img = RLImage("logo.png", width=36 * mm, height=16 * mm, kind="proportional")
-            top_table = Table([[logo_img, text_block]], colWidths=[42 * mm, 140 * mm])
-            top_table.setStyle(
-                TableStyle(
-                    [
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("ALIGN", (0, 0), (0, 0), "LEFT"),
-                        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                    ]
-                )
-            )
-            story.append(top_table)
-        except Exception:
-            story.extend(text_block)
-    else:
-        story.extend(text_block)
-
-    story.append(Spacer(1, 3 * mm))
-    story.append(HRFlowable(width="100%", thickness=1.2, color=colors.HexColor("#124E91")))
-    story.append(Spacer(1, 5 * mm))
-
-    # כרטיסי תמונות ותיאור
-    for idx, item in enumerate(items, start=1):
-        img = Image.open(item["file"])
-        img = ImageOps.exif_transpose(img)
-        if img.mode in ("RGBA", "P"):
-            img = img.convert("RGB")
-
-        img_io = io.BytesIO()
-        img.save(img_io, format="JPEG", quality=85)
-        img_io.seek(0)
-
-        img_reader
+        textColor
