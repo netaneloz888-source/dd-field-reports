@@ -110,6 +110,10 @@ def _ensure_fallback_fonts():
 
 
 def register_fonts():
+    registered = set(pdfmetrics.getRegisteredFontNames())
+    if "HebReg" in registered and "HebBold" in registered:
+        return "HebReg", "HebBold"
+
     reg_path, bold_path = _find_hebrew_font_paths()
     if not reg_path or not bold_path:
         dl_reg, dl_bold = _ensure_fallback_fonts()
@@ -124,8 +128,11 @@ def register_fonts():
     if not bold_path:
         bold_path = reg_path
 
-    pdfmetrics.registerFont(TTFont("HebReg", reg_path))
-    pdfmetrics.registerFont(TTFont("HebBold", bold_path))
+    if "HebReg" not in registered:
+        pdfmetrics.registerFont(TTFont("HebReg", reg_path))
+    if "HebBold" not in registered:
+        pdfmetrics.registerFont(TTFont("HebBold", bold_path))
+
     return "HebReg", "HebBold"
 
 
@@ -172,4 +179,10 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
     desc_style = ParagraphStyle(
         "DescStyle",
         fontName=font_reg,
-        fontSize=10
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor("#1A1A1A"),
+        alignment=2,
+    )
+
+    header_title = heb("ד.ד. מהנדסים בע''מ - דוח שטח")
