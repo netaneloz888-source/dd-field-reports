@@ -57,7 +57,10 @@ def heb(text):
 
 
 def ensure_font_file(candidates, url, fallback_filename):
-    existing = next((p for p in candidates if os.path.exists(p) and os.path.getsize(p) > 10000), None)
+    existing = next(
+        (p for p in candidates if os.path.exists(p) and os.path.getsize(p) > 10000),
+        None,
+    )
     if existing:
         return existing
 
@@ -67,16 +70,17 @@ def ensure_font_file(candidates, url, fallback_filename):
 
     if not (os.path.exists(target_path) and os.path.getsize(target_path) > 10000):
         try:
-            req = urllib.request.Request(
-                url,
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
             with urllib.request.urlopen(req, timeout=15) as resp, open(target_path, "wb") as out:
                 out.write(resp.read())
         except Exception:
             return None
 
-    return target_path if os.path.exists(target_path) and os.path.getsize(target_path) > 10000 else None
+    return (
+        target_path
+        if os.path.exists(target_path) and os.path.getsize(target_path) > 10000
+        else None
+    )
 
 
 def register_fonts():
@@ -160,6 +164,12 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
         alignment=2,
     )
 
+    junction_txt = junction_name.strip() if junction_name and junction_name.strip() else "לא צוין"
+    nature_txt = report_nature.strip() if report_nature and report_nature.strip() else "לא צוינה"
+
     header_title = heb("ד.ד. מהנדסים בע''מ - דוח שטח")
-    header_sub = heb(
-        f"צומת: {junction_name or 'לא צוין'}  |
+    header_sub = heb(f"צומת: {junction_txt}  |  מהות: {nature_txt}  |  תאריך: {report_date}")
+
+    text_block = [
+        Paragraph(header_title, title_style),
+        Spacer(1
