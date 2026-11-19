@@ -58,8 +58,15 @@ def heb(text):
 
 def register_fonts():
     try:
+        reg_name = "AlefRegular"
+        bold_name = "AlefBold"
+        registered = set(pdfmetrics.getRegisteredFontNames())
+        if reg_name in registered and bold_name in registered:
+            return reg_name, bold_name
+
         reg_path = "Alef-Regular.ttf"
         bold_path = "Alef-Bold.ttf"
+
         if not os.path.exists(reg_path):
             reg_path = "/tmp/Alef-Regular.ttf"
             if not os.path.exists(reg_path):
@@ -67,6 +74,7 @@ def register_fonts():
                     "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Regular.ttf",
                     reg_path,
                 )
+
         if not os.path.exists(bold_path):
             bold_path = "/tmp/Alef-Bold.ttf"
             if not os.path.exists(bold_path):
@@ -74,9 +82,12 @@ def register_fonts():
                     "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Bold.ttf",
                     bold_path,
                 )
-        pdfmetrics.registerFont(TTFont("AlefRegular", reg_path))
-        pdfmetrics.registerFont(TTFont("AlefBold", bold_path))
-        return "AlefRegular", "AlefBold"
+
+        if reg_name not in registered:
+            pdfmetrics.registerFont(TTFont(reg_name, reg_path))
+        if bold_name not in registered:
+            pdfmetrics.registerFont(TTFont(bold_name, bold_path))
+        return reg_name, bold_name
     except Exception as e:
         print("Error registering fonts:", e)
         return "Helvetica", "Helvetica-Bold"
@@ -148,4 +159,29 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
                     [
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                         ("ALIGN", (0, 0), (0, 0), "LEFT"),
-                        ("ALIGN", (
+                        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                    ]
+                )
+            )
+            story.append(top_table)
+        except Exception:
+            story.extend(text_block)
+    else:
+        story.extend(text_block)
+
+    story.append(Spacer(1, 3 * mm))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=colors.HexColor("#124E91")))
+    story.append(Spacer(1, 5 * mm))
+
+    # כרטיסי תמונות ותיאור
+    for idx, item in enumerate(items, start=1):
+        img = Image.open(item["file"])
+        img = ImageOps.exif_transpose(img)
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+
+        img_io = io.BytesIO()
+        img.save(img_io, format="JPEG", quality=85)
+        img_io.seek(0)
+
+        img_reader
