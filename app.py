@@ -56,49 +56,30 @@ def heb(text):
     return "<br/>".join(get_display(line) for line in lines)
 
 
-def _get_font_file(filename, url):
-    if os.path.exists(filename):
-        return filename
-    cache_path = os.path.join("/tmp", filename)
-    if os.path.exists(cache_path):
-        return cache_path
-    try:
-        urllib.request.urlretrieve(url, cache_path)
-        if os.path.exists(cache_path):
-            return cache_path
-    except Exception as e:
-        print(f"Could not download {filename}:", e)
-    return None
-
-
 def register_fonts():
-    reg_name = "AlefRegular"
-    bold_name = "AlefBold"
-    registered = set(pdfmetrics.getRegisteredFontNames())
-
-    if reg_name in registered and bold_name in registered:
-        return reg_name, bold_name
-
-    reg_path = _get_font_file(
-        "Alef-Regular.ttf",
-        "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Regular.ttf",
-    )
-    bold_path = _get_font_file(
-        "Alef-Bold.ttf",
-        "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Bold.ttf",
-    )
-
-    if reg_path and bold_path:
-        try:
-            if reg_name not in registered:
-                pdfmetrics.registerFont(TTFont(reg_name, reg_path))
-            if bold_name not in registered:
-                pdfmetrics.registerFont(TTFont(bold_name, bold_path))
-            return reg_name, bold_name
-        except Exception as e:
-            print("Error registering fonts:", e)
-
-    return "Helvetica", "Helvetica-Bold"
+    try:
+        reg_path = "Alef-Regular.ttf"
+        bold_path = "Alef-Bold.ttf"
+        if not os.path.exists(reg_path):
+            reg_path = "/tmp/Alef-Regular.ttf"
+            if not os.path.exists(reg_path):
+                urllib.request.urlretrieve(
+                    "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Regular.ttf",
+                    reg_path,
+                )
+        if not os.path.exists(bold_path):
+            bold_path = "/tmp/Alef-Bold.ttf"
+            if not os.path.exists(bold_path):
+                urllib.request.urlretrieve(
+                    "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Bold.ttf",
+                    bold_path,
+                )
+        pdfmetrics.registerFont(TTFont("AlefRegular", reg_path))
+        pdfmetrics.registerFont(TTFont("AlefBold", bold_path))
+        return "AlefRegular", "AlefBold"
+    except Exception as e:
+        print("Error registering fonts:", e)
+        return "Helvetica", "Helvetica-Bold"
 
 
 def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, items):
@@ -167,15 +148,4 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
                     [
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                         ("ALIGN", (0, 0), (0, 0), "LEFT"),
-                        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                    ]
-                )
-            )
-            story.append(top_table)
-        except Exception:
-            story.extend(text_block)
-    else:
-        story.extend(text_block)
-
-    story.append(Spacer(1, 3 * mm))
-    story.append(HRFlowable(width="100%", thickness=1.2, color=colors
+                        ("ALIGN", (
