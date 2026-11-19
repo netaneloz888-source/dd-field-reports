@@ -172,4 +172,46 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
 
     text_block = [
         Paragraph(header_title, title_style),
-        Spacer(1
+        Spacer(1, 2 * mm),
+        Paragraph(header_sub, sub_style),
+    ]
+
+    if os.path.exists("logo.png"):
+        try:
+            logo_img = RLImage("logo.png", width=36 * mm, height=16 * mm, kind="proportional")
+            top_table = Table([[logo_img, text_block]], colWidths=[42 * mm, 140 * mm])
+            top_table.setStyle(
+                TableStyle(
+                    [
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                    ]
+                )
+            )
+            story.append(top_table)
+        except Exception:
+            story.extend(text_block)
+    else:
+        story.extend(text_block)
+
+    story.append(Spacer(1, 3 * mm))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=colors.HexColor("#124E91")))
+    story.append(Spacer(1, 5 * mm))
+
+    for idx, item in enumerate(items, start=1):
+        img = Image.open(item["file"])
+        img = ImageOps.exif_transpose(img)
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+
+        img_io = io.BytesIO()
+        img.save(img_io, format="JPEG", quality=85)
+        img_io.seek(0)
+
+        img_reader = ImageReader(img_io)
+        iw, ih = img_reader.getSize()
+        max_w = 68 * mm
+        max_h = 48 * mm
+        scale = min(max_w / max(iw, 1), max_h / max(ih, 1))
+        rl_img = RLImage(img_io, width=iw * scale, height=ih * scale)
