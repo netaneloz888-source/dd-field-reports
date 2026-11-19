@@ -1,17 +1,21 @@
+from datetime import datetime
 import os
 import tempfile
 import urllib.request
-from datetime import datetime
 
-import streamlit as st
 from bidi.algorithm import get_display
 from fpdf import FPDF
 from PIL import Image, ImageOps
+import streamlit as st
 
-# הגדרות עמוד וכיוון מימין לשמאל
-st.set_page_config(page_title="ד.ד. מהנדסים בע''מ - דוח שטח", page_icon="⚡", layout="wide")
+st.set_page_config(
+    page_title="ד.ד. מהנדסים בע''מ - דוח שטח",
+    page_icon="⚡",
+    layout="wide",
+)
 
-st.markdown("""
+st.markdown(
+    """
     <style>
     .stApp {
         direction: rtl;
@@ -25,10 +29,11 @@ st.markdown("""
         direction: rtl;
     }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
 
-# פונקציית עזר לסידור עברית ומספרים (BiDi) עבור FPDF
 def heb(text):
     if not text:
         return ""
@@ -37,7 +42,6 @@ def heb(text):
 
 
 def resolve_font_paths():
-    """מאתר קובצי DejaVu TTF מקומיים, בשרת, או מוריד אותם לתיקיית זמנית כגיבוי."""
     candidates = {
         "regular": [
             "DejaVuSans.ttf",
@@ -51,15 +55,15 @@ def resolve_font_paths():
         ],
     }
 
-    resolved = {}
-    fallback_dir = os.path.join(tempfile.gettempdir(), "dd_report_fonts")
-    os.makedirs(fallback_dir, exist_ok=True)
-
     urls = {
         "regular": "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans.ttf",
         "bold": "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf",
     }
 
+    fallback_dir = os.path.join(tempfile.gettempdir(), "dd_report_fonts")
+    os.makedirs(fallback_dir, exist_ok=True)
+
+    resolved = {}
     for style in ("regular", "bold"):
         found = next((p for p in candidates[style] if os.path.exists(p)), None)
         if not found:
@@ -73,7 +77,16 @@ def resolve_font_paths():
 
 
 class EngineeringReportPDF(FPDF):
-    def __init__(self, junction_name, report_nature, report_date, inspector_name, license_type, license_num, phone):
+    def __init__(
+        self,
+        junction_name,
+        report_nature,
+        report_date,
+        inspector_name,
+        license_type,
+        license_num,
+        phone,
+    ):
         super().__init__()
         self.junction_name = junction_name
         self.report_nature = report_nature
@@ -84,14 +97,27 @@ class EngineeringReportPDF(FPDF):
         self.phone = phone
 
     def header(self):
-        # הלוגו בראש הדף
         if os.path.exists("logo.png"):
             self.image("logo.png", x=130, y=8, w=68)
             self.set_xy(12, 11)
             self.set_font("DejaVu", "B", 13)
             self.set_text_color(18, 78, 145)
-            self.cell(110, 7, heb(self.junction_name if self.junction_name else "דוח פיקוח ושטח"), ln=True, align="L")
+            title_txt = self.junction_name if self.junction_name else "דוח פיקוח ושטח"
+            self.cell(110, 7, heb(title_txt), ln=True, align="L")
 
             self.set_font("DejaVu", "B", 10)
             self.set_text_color(40, 40, 40)
-            self.cell(110, 6, heb(self.report_nature if self.report_nature else ""), ln=True
+            nature_txt = self.report_nature if self.report_nature else ""
+            self.cell(110, 6, heb(nature_txt), ln=True, align="L")
+
+            self.set_font("DejaVu", "", 9)
+            self.set_text_color(100, 100, 100)
+            self.cell(110, 6, heb(f"תאריך: {self.report_date}"), ln=True, align="L")
+            self.set_y(37)
+        else:
+            self.set_font("DejaVu", "B", 16)
+            self.set_text_color(18, 78, 145)
+            self.cell(0, 10, heb("ד.ד. מהנדסים בע''מ"), ln=True, align="C")
+            self.ln(2)
+
+        self.set_draw_color(18, 78, 145)
