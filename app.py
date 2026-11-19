@@ -1,6 +1,7 @@
 from datetime import datetime
 import io
 import os
+import urllib.request
 
 from bidi.algorithm import get_display
 from PIL import Image, ImageOps
@@ -49,21 +50,83 @@ st.markdown(
 
 
 def heb(text):
-    if not text:
+    if text is None:
         return ""
-    lines = str(text).split("\n")
+    s = str(text)
+    if not s:
+        return ""
+    lines = s.split("\n")
     return "<br/>".join(get_display(line) for line in lines)
 
 
+def _find_hebrew_font_paths():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates_reg = [
+        os.path.join(base_dir, "Alef-Regular.ttf"),
+        "Alef-Regular.ttf",
+        os.path.join(base_dir, "fonts", "Alef-Regular.ttf"),
+        "/usr/share/fonts/truetype/alef/Alef-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+        "C:\\Windows\\Fonts\\david.ttf",
+    ]
+    candidates_bold = [
+        os.path.join(base_dir, "Alef-Bold.ttf"),
+        "Alef-Bold.ttf",
+        os.path.join(base_dir, "fonts", "Alef-Bold.ttf"),
+        "/usr/share/fonts/truetype/alef/Alef-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "C:\\Windows\\Fonts\\arialbd.ttf",
+        "C:\\Windows\\Fonts\\davidbd.ttf",
+    ]
+
+    reg_path = next((p for p in candidates_reg if p and os.path.exists(p)), None)
+    bold_path = next((p for p in candidates_bold if p and os.path.exists(p)), None)
+    return reg_path, bold_path
+
+
+def _ensure_fallback_fonts():
+    cache_dir = os.path.join(os.path.expanduser("~"), ".cache", "dd_pdf_fonts")
+    os.makedirs(cache_dir, exist_ok=True)
+    reg_cache = os.path.join(cache_dir, "Alef-Regular.ttf")
+    bold_cache = os.path.join(cache_dir, "Alef-Bold.ttf")
+
+    urls = {
+        reg_cache: "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Regular.ttf",
+        bold_cache: "https://github.com/google/fonts/raw/main/ofl/alef/Alef-Bold.ttf",
+    }
+
+    for target_path, url in urls.items():
+        if not os.path.exists(target_path):
+            try:
+                urllib.request.urlretrieve(url, target_path)
+            except Exception:
+                pass
+
+    return (
+        reg_cache if os.path.exists(reg_cache) else None,
+        bold_cache if os.path.exists(bold_cache) else None,
+    )
+
+
 def register_fonts():
-    try:
-        # תוודא שקבצי Alef-Regular.ttf ו-Alef-Bold.ttf נמצאים בתיקיה זו או תעדכן את הנתיב בהתאם
-        pdfmetrics.registerFont(TTFont("AlefRegular", "Alef-Regular.ttf"))
-        pdfmetrics.registerFont(TTFont("AlefBold", "Alef-Bold.ttf"))
-        return "AlefRegular", "AlefBold"
-    except Exception as e:
-        print("Error registering fonts:", e)
-        return "Helvetica", "Helvetica-Bold"
+    reg_path, bold_path = _find_hebrew_font_paths()
+    if not reg_path or not bold_path:
+        dl_reg, dl_bold = _ensure_fallback_fonts()
+        reg_path = reg_path or dl_reg
+        bold_path = bold_path or dl_bold
+
+    if not reg_path:
+        raise RuntimeError(
+            "לא נמצא קובץ פונט תומך עברית (.ttf). מומלץ להניח את Alef-Regular.ttf ו-Alef-Bold.ttf בתיקיית הקוד."
+        )
+
+    if not bold_path:
+        bold_path = reg_path
+
+    pdfmetrics.registerFont(TTFont("HebReg", reg_path))
+    pdfmetrics.registerFont(TTFont("HebBold", bold_path))
+    return "HebReg", "HebBold"
 
 
 def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, items):
@@ -109,211 +172,4 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
     desc_style = ParagraphStyle(
         "DescStyle",
         fontName=font_reg,
-        fontSize=10,
-        leading=14,
-        textColor=colors.HexColor("#1A1A1A"),
-        alignment=2,
-    )
-
-    # כותרת עליונה ולוגו
-    header_title = heb("ד.ד. מהנדסים בע''מ - דוח שטח")
-    header_sub = heb(
-        f"צומת: {junction_name or 'לא צוין'}  |  מהות: {report_nature or 'לא צוינה'}  |  תאריך: {report_date}"
-    )
-
-    text_block = [Paragraph(header_title, title_style), Spacer(1, 2 * mm), Paragraph(header_sub, sub_style)]
-
-    if os.path.exists("logo.png"):
-        try:
-            logo_img = RLImage("logo.png", width=36 * mm, height=16 * mm, kind="proportional")
-            top_table = Table([[logo_img, text_block]], colWidths=[42 * mm, 140 * mm])
-            top_table.setStyle(
-                TableStyle(
-                    [
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("ALIGN", (0, 0), (0, 0), "LEFT"),
-                        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                    ]
-                )
-            )
-            story.append(top_table)
-        except Exception:
-            story.extend(text_block)
-    else:
-        story.extend(text_block)
-
-    story.append(Spacer(1, 3 * mm))
-    story.append(HRFlowable(width="100%", thickness=1.2, color=colors.HexColor("#124E91")))
-    story.append(Spacer(1, 5 * mm))
-
-    # כרטיסי תמונות ותיאור
-    for idx, item in enumerate(items, start=1):
-        img = Image.open(item["file"])
-        img = ImageOps.exif_transpose(img)
-        if img.mode in ("RGBA", "P"):
-            img = img.convert("RGB")
-
-        img_io = io.BytesIO()
-        img.save(img_io, format="JPEG", quality=85)
-        img_io.seek(0)
-
-        img_reader = ImageReader(img_io)
-        iw, ih = img_reader.getSize()
-        max_w = 68 * mm
-        max_h = 48 * mm
-        scale = min(max_w / max(iw, 1), max_h / max(ih, 1))
-        rl_img = RLImage(img_io, width=iw * scale, height=ih * scale)
-
-        desc_raw = item["desc"].strip() if item["desc"] and item["desc"].strip() else "לא הוזן תיאור."
-        right_cell = [
-            Paragraph(heb(f"תמונה {idx} - תיאור"), card_header_style),
-            Spacer(1, 2 * mm),
-            Paragraph(heb(desc_raw), desc_style),
-        ]
-
-        row_table = Table([[right_cell, rl_img]], colWidths=[108 * mm, 74 * mm])
-        row_table.setStyle(
-            TableStyle(
-                [
-                    ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#B8C6D8")),
-                    ("LINEBEFORE", (1, 0), (1, -1), 0.7, colors.HexColor("#B8C6D8")),
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FCFDFE")),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("ALIGN", (0, 0), (0, 0), "RIGHT"),
-                    ("ALIGN", (1, 0), (1, 0), "CENTER"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ]
-            )
-        )
-        story.append(row_table)
-        story.append(Spacer(1, 4 * mm))
-
-    # פרטי מפקח בסוף הדוח
-    story.append(Spacer(1, 2 * mm))
-    story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#124E91")))
-    story.append(Spacer(1, 3 * mm))
-
-    inspector_line = heb(
-        f"מפקח: {inspector_data['name']}  |  "
-        f"רישיון: {inspector_data['license_type']}  |  "
-        f"מס' רישיון: {inspector_data['license_num'] or '-'}  |  "
-        f"טלפון: {inspector_data['phone']}"
-    )
-    sig_table = Table([[Paragraph(inspector_line, sub_style)]], colWidths=[182 * mm])
-    sig_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#EEF3F9")),
-                ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#9BB2CE")),
-                ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ]
-        )
-    )
-    story.append(sig_table)
-
-    doc.build(story)
-    buffer.seek(0)
-    return buffer.getvalue()
-
-
-# ================= ממשק המשתמש =================
-col_logo, col_title = st.columns([1, 4])
-with col_logo:
-    if os.path.exists("logo.png"):
-        st.image("logo.png", use_container_width=True)
-with col_title:
-    st.title("ד.ד. מהנדסים בע''מ")
-    st.caption("הפקת דוחות שטח ותמונות PDF")
-
-st.divider()
-
-st.subheader("1. פרטי ראש הדוח")
-c1, c2 = st.columns(2)
-with c1:
-    junction_name = st.text_input("שם צומת", placeholder="לדוגמה: ניסים טולדנו")
-with c2:
-    report_nature = st.text_input("מהות הדוח", value="דוח לפני מסירת צומת")
-
-st.divider()
-
-st.subheader("2. תמונות ותיאור")
-uploaded_files = st.file_uploader(
-    "בחר או צלם תמונות",
-    type=["jpg", "jpeg", "png"],
-    accept_multiple_files=True,
-)
-
-items_data = []
-if uploaded_files:
-    for i, file in enumerate(uploaded_files):
-        with st.container():
-            col_img, col_desc = st.columns([1, 2])
-            with col_img:
-                st.image(file, use_container_width=True)
-            with col_desc:
-                desc = st.text_area(
-                    f"תיאור תמונה {i + 1}",
-                    key=f"desc_{i}",
-                    height=150,
-                    placeholder="רשום תיאור לתמונה...",
-                )
-                items_data.append({"file": file, "desc": desc})
-
-st.divider()
-
-st.subheader("3. פרטי מפקח")
-i1, i2, i3, i4 = st.columns(4)
-with i1:
-    inspector_name = st.text_input("שם המפקח", value="נתנאל עוז הררי")
-with i2:
-    license_type = st.text_input("סוג רישיון", value="הנדסאי חשמל / מפקח הסדרי תנועה")
-with i3:
-    license_num = st.text_input("מס' רישוין", placeholder="הזן מס' רישיון")
-with i4:
-    phone = st.text_input("טלפון", value="054-5520445")
-
-st.divider()
-
-if "pdf_ready_bytes" not in st.session_state:
-    st.session_state.pdf_ready_bytes = None
-    st.session_state.pdf_ready_name = None
-
-if st.button("📄 הפק דוח PDF", type="primary", use_container_width=True):
-    if not uploaded_files:
-        st.warning("נא להעלות לפחות תמונה אחת לפני הפקת הדוח.")
-    else:
-        with st.spinner("מייצר קובץ PDF..."):
-            inspector_info = {
-                "name": inspector_name,
-                "license_type": license_type,
-                "license_num": license_num,
-                "phone": phone,
-            }
-            date_str = datetime.now().strftime("%d/%m/%Y")
-            pdf_bytes = build_pdf_bytes(
-                junction_name=junction_name,
-                report_nature=report_nature,
-                report_date=date_str,
-                inspector_data=inspector_info,
-                items=items_data,
-            )
-            clean_junction = junction_name.strip().replace(" ", "_") if junction_name.strip() else "דוח"
-            st.session_state.pdf_ready_bytes = pdf_bytes
-            st.session_state.pdf_ready_name = f"{clean_junction}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
-
-if st.session_state.pdf_ready_bytes:
-    st.success("הדוח מוכן! לחץ על הכפתור למטה להורדה.")
-    st.download_button(
-        label="⬇️ הורד דוח PDF",
-        data=st.session_state.pdf_ready_bytes,
-        file_name=st.session_state.pdf_ready_name,
-        mime="application/pdf",
-        use_container_width=True,
-    )
+        fontSize=10
