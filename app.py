@@ -112,4 +112,5 @@ def build_investigation_pdf(event_data, inspector_data, items):
         leftMargin=14 * mm,
         topMargin=15 * mm,
         bottomMargin=16 * mm,
-        title=f"ד
+text_block = [
+        Paragraph(header_title, title_style),
