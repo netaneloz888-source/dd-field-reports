@@ -228,12 +228,7 @@ def build_pdf_bytes(junction_name, report_nature, report_date, inspector_data, i
     story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#124E91")))
     story.append(Spacer(1, 3 * mm))
 
-    inspector_line = heb(
-        f"מפקח: {inspector_data['name']}  |  "
-        f"רישיון: {inspector_data['license_type']}  |  "
-        f"מס' רישיון: {inspector_data['license_num'] or '-'}  |  "
-        f"טלפון: {inspector_data['phone']}"
-    )
+    inspector_line = heb("כל הזכויות שייכות לנתנאל עוז הררי 0545520445")
     sig_table = Table([[Paragraph(inspector_line, sub_style)]], colWidths=[182 * mm])
     sig_table.setStyle(
         TableStyle(
